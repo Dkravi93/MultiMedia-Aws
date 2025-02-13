@@ -1,7 +1,7 @@
 import { useState } from "react";
 import axios from "axios";
 
-const MediaUpload = () => {
+const MediaUpload = ({ onUploadSuccess }) => {
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -19,19 +19,23 @@ const MediaUpload = () => {
 
     try {
       const token = localStorage.getItem("token");
-      console.log("yyyyyyyy", token);
-      
 
-      const { data } = await axios.post("https://multimedia-aws.onrender.com/api/media/upload", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-          Authorization: `Bearer ${token}`,  // Send JWT token
-        },
-      });
-      console.log("Upload response:", data);
-      
+      await axios.post(
+        "https://multimedia-aws.onrender.com/api/media/upload",
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
       setMessage("Upload successful!");
       setFile(null);
+
+      // Trigger refresh after upload
+      onUploadSuccess();
     } catch (error) {
       console.error("Upload error:", error);
       setMessage("Upload failed!");
@@ -47,7 +51,7 @@ const MediaUpload = () => {
       <button
         onClick={uploadFile}
         disabled={loading}
-        className="mt-4 w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600"
+        className="cursor-pointer mt-4 w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600"
       >
         {loading ? "Uploading..." : "Upload"}
       </button>
