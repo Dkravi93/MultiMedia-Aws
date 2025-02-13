@@ -37,8 +37,7 @@ const MediaUpload = ({ onUploadSuccess }) => {
       // Trigger refresh after upload
       onUploadSuccess();
     } catch (error) {
-      console.error("Upload error:", error);
-      setMessage("Upload failed!");
+      setMessage(`Upload failed! ${error.message}`);
     } finally {
       setLoading(false);
     }

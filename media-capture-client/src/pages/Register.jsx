@@ -24,7 +24,7 @@ const Register = () => {
         fullname
       });
       localStorage.setItem("token", data.token);
-      alert("Registration successful! Please login.");
+      alert("Registration successful!");
       navigate("/");
     } catch (error) {
       alert(error.response?.data?.message || "Registration failed");
