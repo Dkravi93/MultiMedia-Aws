@@ -11,7 +11,7 @@ const Register = () => {
   const handleRegister = async (e) => {
     e.preventDefault();
     try {
-      const { data } = await axios.post("http://localhost:5000/api/auth/register", {
+      const { data } = await axios.post("https://multimedia-aws.onrender.com/api/auth/register", {
         email,
         password,
         fullname

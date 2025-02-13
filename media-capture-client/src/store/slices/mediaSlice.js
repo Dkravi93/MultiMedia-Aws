@@ -3,14 +3,14 @@ import axios from "axios";
 
 // Fetch media
 export const fetchMedia = createAsyncThunk("media/fetchMedia", async () => {
-  const { data } = await axios.get("http://localhost:5000/api/media");
+  const { data } = await axios.get("https://multimedia-aws.onrender.com/api/media");
   return data;
 });
 
 // Delete media
 export const deleteMedia = createAsyncThunk("media/deleteMedia", async (key, { rejectWithValue }) => {
   try {
-    await axios.delete(`http://localhost:5000/api/media/${encodeURIComponent(key)}`);
+    await axios.delete(`https://multimedia-aws.onrender.com/api/media/${encodeURIComponent(key)}`);
     alert(`Filename: ${key} deleted successfully`);
     return key;
   } catch (error) {

@@ -22,7 +22,7 @@ const MediaUpload = () => {
       console.log("yyyyyyyy", token);
       
 
-      const { data } = await axios.post("http://localhost:5000/api/media/upload", formData, {
+      const { data } = await axios.post("https://multimedia-aws.onrender.com/api/media/upload", formData, {
         headers: {
           "Content-Type": "multipart/form-data",
           Authorization: `Bearer ${token}`,  // Send JWT token
