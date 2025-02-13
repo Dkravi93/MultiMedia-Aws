@@ -44,8 +44,8 @@ The **Media Capture and Storage Web Application** is a full-stack MERN project t
 ## Project Setup
 ### **1️⃣ Clone the Repository**
 ```bash
-git clone https://github.com/your-username/media-capture-app.git
-cd media-capture-app
+git clone [https://github.com/your-username/media-capture-app.git](https://github.com/Dkravi93/MultiMedia-Aws.git)
+cd media-capture-client
 ```
 
 ### **2️⃣ Backend Setup**
