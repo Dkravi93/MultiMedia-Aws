@@ -1,7 +1,11 @@
-import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { Upload } from "@aws-sdk/lib-storage";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import Media from "../models/Media.js";
 import dotenv from "dotenv";
+import fs from "fs";
+import path from "path";
+import ffmpeg from "fluent-ffmpeg";
 
 dotenv.config();
 
@@ -14,38 +18,76 @@ const s3 = new S3Client({
   },
 });
 
+// Utility: Compress video before upload
+const compressVideo = (inputPath, outputPath) => {
+  return new Promise((resolve, reject) => {
+    ffmpeg(inputPath)
+      .outputOptions([
+        "-c:v libx264",
+        "-preset fast",
+        "-crf 28", // quality: 18-30 (lower = better quality, bigger size)
+        "-c:a aac",
+        "-b:a 128k",
+        "-movflags +faststart"
+      ])
+      .on("end", () => resolve(outputPath))
+      .on("error", reject)
+      .save(outputPath);
+  });
+};
+
 // 📌 Upload Media to AWS S3
 export const uploadMedia = async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No file uploaded!" });
-    console.log("IIIIIIIIIII");
-    
-    const fileBuffer = req.file.buffer;
-    const fileName = `${process.env.AWS_BUCKET_FOLDER}${Date.now()}-${req.file.originalname}`;
-    
-    const params = {
-      Bucket: process.env.AWS_BUCKET_NAME,
-      Key: fileName,
-      Body: fileBuffer,
-      ContentType: req.file.mimetype,
-    };
+    if (!req.user) return res.status(401).json({ error: "Unauthorized!" });
 
-    await s3.send(new PutObjectCommand(params));
+    const fileExt = path.extname(req.file.originalname);
+    const fileName = `${process.env.AWS_BUCKET_FOLDER}${Date.now()}-${req.file.originalname.replace(/\s+/g, "_")}`;
+    const tempInput = `uploads/${Date.now()}-input${fileExt}`;
+    const tempOutput = `uploads/${Date.now()}-output.mp4`;
 
-    // Ensure `req.user.id` exists (comes from auth middleware)
-    const uploadedBy = req.user;
-    if (!uploadedBy) return res.status(401).json({ error: "Unauthorized!" });
-    const commmand = new GetObjectCommand({ Bucket: process.env.AWS_BUCKET_NAME, Key: fileName });
-    const signedUrl = await getSignedUrl(s3,commmand);
+    // Save incoming file temporarily
+    fs.writeFileSync(tempInput, req.file.buffer);
 
-    // Save metadata in MongoDB
+    let finalFilePath = tempInput;
+
+    // If video → compress it
+    if (req.file.mimetype.startsWith("video")) {
+      finalFilePath = await compressVideo(tempInput, tempOutput);
+      fs.unlinkSync(tempInput); // remove original
+    }
+
+    const fileStream = fs.createReadStream(finalFilePath);
+
+    // Stream upload (crash-proof)
+    const upload = new Upload({
+      client: s3,
+      params: {
+        Bucket: process.env.AWS_BUCKET_NAME,
+        Key: fileName,
+        Body: fileStream,
+        ContentType: req.file.mimetype,
+      },
+    });
+
+    await upload.done();
+
+    // Clean up compressed file
+    if (fs.existsSync(tempOutput)) fs.unlinkSync(tempOutput);
+
+    // Generate signed URL (valid for 1 hour)
+    const command = new GetObjectCommand({ Bucket: process.env.AWS_BUCKET_NAME, Key: fileName });
+    const signedUrl = await getSignedUrl(s3, command, { expiresIn: 3600 });
+
+    // Save metadata in DB
     const media = new Media({
       url: signedUrl,
       key: fileName,
       type: req.file.mimetype.startsWith("image") ? "image" : "video",
-      uploadedBy
+      uploadedBy: req.user,
     });
-    
+
     await media.save();
 
     res.status(201).json({ message: "File uploaded successfully!", media });
@@ -54,7 +96,6 @@ export const uploadMedia = async (req, res) => {
     res.status(500).json({ error: "File upload failed!" });
   }
 };
-
 
 // 📌 Get All Uploaded Media
 export const getMedia = async (req, res) => {
@@ -74,8 +115,6 @@ export const deleteMedia = async (req, res) => {
     if (!key) return res.status(400).json({ error: "File key is required!" });
 
     await s3.send(new DeleteObjectCommand({ Bucket: process.env.AWS_BUCKET_NAME, Key: key }));
-
-    // Delete from MongoDB
     await Media.findOneAndDelete({ key });
 
     res.status(200).json({ message: "File deleted successfully!" });
