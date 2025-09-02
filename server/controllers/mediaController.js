@@ -1,5 +1,4 @@
 import { S3Client, DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
-import { Upload } from "@aws-sdk/lib-storage";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import Media from "../models/Media.js";
 import dotenv from "dotenv";
@@ -8,15 +7,6 @@ import path from "path";
 import ffmpeg from "fluent-ffmpeg";
 
 dotenv.config();
-
-// AWS S3 Client Setup
-const s3 = new S3Client({
-  region: process.env.AWS_REGION,
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-  },
-});
 
 // Utility: Compress video before upload
 const compressVideo = (inputPath, outputPath) => {
@@ -57,21 +47,6 @@ export const uploadMedia = async (req, res) => {
       finalFilePath = await compressVideo(tempInput, tempOutput);
       fs.unlinkSync(tempInput); // remove original
     }
-
-    const fileStream = fs.createReadStream(finalFilePath);
-
-    // Stream upload (crash-proof)
-    const upload = new Upload({
-      client: s3,
-      params: {
-        Bucket: process.env.AWS_BUCKET_NAME,
-        Key: fileName,
-        Body: fileStream,
-        ContentType: req.file.mimetype,
-      },
-    });
-
-    await upload.done();
 
     // Clean up compressed file
     if (fs.existsSync(tempOutput)) fs.unlinkSync(tempOutput);
