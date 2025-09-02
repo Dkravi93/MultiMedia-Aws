@@ -8,10 +8,19 @@ import { spawn } from "child_process";
 
 dotenv.config();
 
-// Utility: Compress video before upload
+// AWS S3 client
+const s3 = new S3Client({
+  region: process.env.AWS_REGION,
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  },
+});
+
+// Compress video with ffmpeg
 const compressVideo = (inputPath, outputPath) => {
   return new Promise((resolve, reject) => {
-    const ffmpeg = spawn("ffmpeg", [
+    const ffmpeg = spawn(ffmpegPath, [
       "-i", inputPath,
       "-c:v", "libx264",
       "-preset", "fast",
@@ -29,7 +38,7 @@ const compressVideo = (inputPath, outputPath) => {
   });
 };
 
-// 📌 Upload Media to AWS S3
+// Upload Media
 export const uploadMedia = async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No file uploaded!" });
@@ -40,21 +49,30 @@ export const uploadMedia = async (req, res) => {
     const tempInput = `uploads/${Date.now()}-input${fileExt}`;
     const tempOutput = `uploads/${Date.now()}-output.mp4`;
 
-    // Save incoming file temporarily
+    // Save uploaded buffer temporarily
     fs.writeFileSync(tempInput, req.file.buffer);
 
     let finalFilePath = tempInput;
 
-    // If video → compress it
+    // If video → compress
     if (req.file.mimetype.startsWith("video")) {
       finalFilePath = await compressVideo(tempInput, tempOutput);
-      fs.unlinkSync(tempInput); // remove original
+      fs.unlinkSync(tempInput); // remove raw input
     }
 
-    // Clean up compressed file
-    if (fs.existsSync(tempOutput)) fs.unlinkSync(tempOutput);
+    // Upload compressed (or original) file to S3
+    const fileBuffer = fs.readFileSync(finalFilePath);
+    await s3.send(new PutObjectCommand({
+      Bucket: process.env.AWS_BUCKET_NAME,
+      Key: fileName,
+      Body: fileBuffer,
+      ContentType: req.file.mimetype,
+    }));
 
-    // Generate signed URL (valid for 1 hour)
+    // Cleanup
+    if (fs.existsSync(finalFilePath)) fs.unlinkSync(finalFilePath);
+
+    // Generate signed URL (valid 1 hour)
     const command = new GetObjectCommand({ Bucket: process.env.AWS_BUCKET_NAME, Key: fileName });
     const signedUrl = await getSignedUrl(s3, command, { expiresIn: 3600 });
 
