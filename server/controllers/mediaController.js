@@ -4,25 +4,29 @@ import Media from "../models/Media.js";
 import dotenv from "dotenv";
 import fs from "fs";
 import path from "path";
-import ffmpeg from "fluent-ffmpeg";
+import { spawn } from "child_process";
+import fs from "fs";
 
 dotenv.config();
 
 // Utility: Compress video before upload
 const compressVideo = (inputPath, outputPath) => {
   return new Promise((resolve, reject) => {
-    ffmpeg(inputPath)
-      .outputOptions([
-        "-c:v libx264",
-        "-preset fast",
-        "-crf 28", // quality: 18-30 (lower = better quality, bigger size)
-        "-c:a aac",
-        "-b:a 128k",
-        "-movflags +faststart"
-      ])
-      .on("end", () => resolve(outputPath))
-      .on("error", reject)
-      .save(outputPath);
+    const ffmpeg = spawn("ffmpeg", [
+      "-i", inputPath,
+      "-c:v", "libx264",
+      "-preset", "fast",
+      "-crf", "28",
+      "-c:a", "aac",
+      "-b:a", "128k",
+      "-movflags", "+faststart",
+      outputPath
+    ]);
+
+    ffmpeg.on("close", (code) => {
+      if (code === 0) resolve(outputPath);
+      else reject(new Error(`FFmpeg failed with code ${code}`));
+    });
   });
 };
 
