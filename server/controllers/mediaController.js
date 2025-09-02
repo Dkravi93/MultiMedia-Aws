@@ -5,7 +5,6 @@ import dotenv from "dotenv";
 import fs from "fs";
 import path from "path";
 import { spawn } from "child_process";
-import fs from "fs";
 
 dotenv.config();
 
